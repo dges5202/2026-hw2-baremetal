@@ -32,6 +32,10 @@ riscv64-unknown-elf-size -A gcd.elf
 | `958ff64` | same `gcd`, CSR window + `print_cycret` (baseline to optimize against) | 652 | 652 | 1.00 | 792 | 124 | 24 | 124 |
 | `e7c4534` | `even_loop`: test at the bottom, `beq` back to body, fall into `gcd_loop` | 613 | 613 | 1.00 | 800 | 124 | 24 | 132 |
 | `2b46ee8` | `strip_a` / `strip_b`: same bottom-tested inner loops | 593 | 593 | 1.00 | 808 | 124 | 24 | 140 |
+| `d489786` | `a > b` subtract falls into `gcd_loop` (**kept**) | 578 | 578 | 1.00 | 812 | 124 | 24 | 144 |
+| `de064c5` | `larger_b` (`a < b`) falls into `gcd_loop` (not kept) | 592 | 592 | 1.00 | 808 | 124 | 24 | 140 |
+
+Kept `d489786` (`a > b` arm). `de064c5` stays in history; it loses 15 instret on `(0x80000001, 3)`.
 
 Append a row for every later commit that changes `gcd` (fall-through, ctz, `sltu`, …). Tooling-only commits stay out, same as Homework 1.
 
@@ -73,6 +77,34 @@ The two unsigned-heavy pairs dominate. `(0, 91)` is the early return; treat it a
 | (0, 91) | 91 | 28 / 14 | 7 | 0 |
 | (6, 10) | 2 | 62 / 48 | 41 | 0 |
 | **sum** | | 719 / 635 | **593** | **−20** |
+
+### After `a > b` falls into `gcd_loop` (`d489786`, kept)
+
+| Pair | Result | Window cyc / iret | Gcd-only | Δ vs `2b46ee8` |
+| :--- | ---: | ---: | ---: | ---: |
+| (1071, 462) | 21 | 82 / 68 | 61 | −1 |
+| (4096, 3072) | 1024 | 114 / 100 | 93 | **+1** |
+| (0xF0000000, 0x30000000) | 805306368 | 218 / 204 | 197 | 0 |
+| (0x80000001, 3) | 3 | 200 / 186 | 179 | −15 |
+| (0, 91) | 91 | 28 / 14 | 7 | 0 |
+| (6, 10) | 2 | 62 / 48 | 41 | 0 |
+| **sum** | | 704 / 620 | **578** | **−15** |
+
+`(4096, 3072)` pays the extra `j gcd_loop` after `even_loop_inner` once. `(0x80000001, 3)` is the `a > b` heavy pair.
+
+### After `larger_b` (`a < b`) falls into `gcd_loop` (`de064c5`, not kept)
+
+Compare with the `a > b` layout above. Not kept: `(0x80000001, 3)` is the hot `a > b` arm.
+
+| Pair | Result | Window cyc / iret | Gcd-only | Δ vs `2b46ee8` | Δ vs `a > b` layout |
+| :--- | ---: | ---: | ---: | ---: | ---: |
+| (1071, 462) | 21 | 81 / 67 | 60 | −2 | −1 |
+| (4096, 3072) | 1024 | 113 / 99 | 92 | 0 | −1 |
+| (0xF0000000, 0x30000000) | 805306368 | 219 / 205 | 198 | +1 | +1 |
+| (0x80000001, 3) | 3 | 215 / 201 | 194 | 0 | **+15** |
+| (0, 91) | 91 | 28 / 14 | 7 | 0 | 0 |
+| (6, 10) | 2 | 62 / 48 | 41 | 0 | 0 |
+| **sum** | | 718 / 634 | **592** | **−1** | **+14** |
 
 ## Memory (instrumented ELF)
 
