@@ -249,27 +249,8 @@ strip_a1_inner:
     andi    t1, a0, 1
     beq     t1, x0, strip_a1_inner               # a is even, back to strip_a1_inner
 
-    j strip_b
-
-odd_sub:
-    beq     a0, a1, gcd_done                    # equal: before sub
-    bltu    a0, a1, larger_b                    # a < b
-    sub     a0, a0, a1                          # a = a - b
-    srli    a0, a0, 1
-
 # gcd_loop: strip trailing twos, then odd_sub, until a == b
 gcd_loop:
-
-# strip_a: while ((a & 1) == 0) a >>= 1
-strip_a:
-    andi    t1, a0, 1
-    bne     t1, x0, odd_sub                     # a odd
-strip_a_inner:
-    srli    a0, a0, 1
-    andi    t1, a0, 1
-    beq     t1, x0, strip_a_inner               # a is even, back to strip_a_inner
-
-    j odd_sub
 
 # strip_b: while ((b & 1) == 0) b >>= 1
 strip_b:
@@ -279,6 +260,21 @@ strip_b_inner:
     srli    a1, a1, 1
     andi    t1, a1, 1
     beq     t1, x0, strip_b_inner               # b is even, back to strip_b_inner
+
+odd_sub:
+    beq     a0, a1, gcd_done                    # equal: before sub
+    bltu    a0, a1, larger_b                    # a < b
+    sub     a0, a0, a1                          # a = a - b
+    srli    a0, a0, 1
+
+# strip_a: while ((a & 1) == 0) a >>= 1
+strip_a:
+    andi    t1, a0, 1
+    bne     t1, x0, odd_sub                     # a odd
+strip_a_inner:
+    srli    a0, a0, 1
+    andi    t1, a0, 1
+    beq     t1, x0, strip_a_inner               # a is even, back to strip_a_inner
 
     j odd_sub
 
