@@ -241,11 +241,11 @@ even_loop_inner:
 
     j gcd_loop
 
-odd_sub:
-    beq     a0, a1, gcd_done                    # equal: before sub
-    bltu    a0, a1, larger_b                    # a < b
-    sub     a0, a0, a1                          # a = a - b
-    srli    a0, a0, 1
+
+    
+larger_b:
+    sub     a1, a1, a0                          # b = b - a
+    srli    a1, a1, 1
 
 # gcd_loop: strip trailing twos, then odd_sub, until a == b
 gcd_loop:
@@ -268,16 +268,17 @@ strip_b_inner:
     andi    t1, a1, 1
     beq     t1, x0, strip_b_inner               # b is even, back to strip_b_inner
 
-    j odd_sub
+
 # odd_sub: both odd
 #   if (a > b) a = (a - b) >> 1     unsigned, srli
 #   else if (a < b) b = (b - a) >> 1
 #   else break
-
-larger_b:
-    sub     a1, a1, a0                          # b = b - a
-    srli    a1, a1, 1
-    j       gcd_loop
+odd_sub:
+    beq     a0, a1, gcd_done                    # equal: before sub
+    bltu    a0, a1, larger_b                    # a < b
+    sub     a0, a0, a1                          # a = a - b
+    srli    a0, a0, 1
+    j gcd_loop
 
 
 gcd_done:
