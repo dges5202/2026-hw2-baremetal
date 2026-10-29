@@ -35,6 +35,7 @@ riscv64-unknown-elf-size -A gcd.elf
 | `d489786` | `a > b` subtract falls into `gcd_loop` (**kept**) | 578 | 578 | 1.00 | 812 | 124 | 24 | 144 |
 | `de064c5` | `larger_b` (`a < b`) falls into `gcd_loop` (not kept) | 592 | 592 | 1.00 | 808 | 124 | 24 | 140 |
 | `99e8e2b` | after subtract, only strip the side just made even | 546 | 546 | 1.00 | 836 | 124 | 24 | 168 |
+| `577ecda` | reorder: `strip_b` falls into `odd_sub`, `strip_a1` into `strip_b` | 544 | 544 | 1.00 | 828 | 124 | 24 | 160 |
 
 Append a row for every later commit that changes `gcd` (fall-through, ctz, `sltu`, …). Tooling-only commits stay out, same as Homework 1.
 
@@ -120,6 +121,20 @@ First entry still goes through `strip_a1` then `strip_b`. After `a > b`, only `s
 | **sum** | | 672 / 588 | **546** | **−32** |
 
 `(0x80000001, 3)` no longer pays `strip_b` on the `a > b` arm. `gcd` grew 144 → 168 for the extra `strip_a1` copy.
+
+### After block reorder (`577ecda`)
+
+`strip_a1_inner` falls into `strip_b`; `strip_b_inner` falls into `odd_sub`. `strip_a_inner` still `j odd_sub`.
+
+| Pair | Result | Window cyc / iret | Gcd-only | Δ vs `99e8e2b` |
+| :--- | ---: | ---: | ---: | ---: |
+| (1071, 462) | 21 | 74 / 60 | 53 | −1 |
+| (4096, 3072) | 1024 | 111 / 97 | 90 | −1 |
+| (0xF0000000, 0x30000000) | 805306368 | 216 / 202 | 195 | 0 |
+| (0x80000001, 3) | 3 | 184 / 170 | 163 | 0 |
+| (0, 91) | 91 | 28 / 14 | 7 | 0 |
+| (6, 10) | 2 | 57 / 43 | 36 | 0 |
+| **sum** | | 670 / 586 | **544** | **−2** |
 
 ## Memory (instrumented ELF)
 
