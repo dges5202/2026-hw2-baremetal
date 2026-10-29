@@ -1,0 +1,13 @@
+# Local emulator tree. Do not submit this directory.
+/rv32emu/
+
+# Nested clones (each has its own .git). Copy files into the program dirs.
+/refs/micro-test/
+/refs/playground/
+
+# Host test binaries and guest images
+/03-gcd/gcd
+/03-gcd/gcd.o
+/03-gcd/gcd.elf
+/03-gcd/perfcounter.o
+
