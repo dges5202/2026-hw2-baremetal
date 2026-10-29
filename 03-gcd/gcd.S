@@ -227,7 +227,7 @@ gcd:
 even_loop:
     or      t1, a0, a1                          # t1 = a | b
     andi    t2, t1, 1                           # t2 = parity
-    bne     t2, x0, gcd_loop                    # one side odd: stop
+    bne     t2, x0, strip_a1                    # one side odd: stop
 
 
 even_loop_inner:
@@ -239,7 +239,17 @@ even_loop_inner:
     andi    t2, t1, 1                           # t2 = parity
     beq     t2, x0, even_loop_inner             # both a and b are even, loop
 
-    j gcd_loop
+
+
+strip_a1:
+    andi    t1, a0, 1
+    bne     t1, x0, strip_b                     # a odd
+strip_a1_inner:
+    srli    a0, a0, 1
+    andi    t1, a0, 1
+    beq     t1, x0, strip_a1_inner               # a is even, back to strip_a1_inner
+
+    j strip_b
 
 odd_sub:
     beq     a0, a1, gcd_done                    # equal: before sub
@@ -253,11 +263,13 @@ gcd_loop:
 # strip_a: while ((a & 1) == 0) a >>= 1
 strip_a:
     andi    t1, a0, 1
-    bne     t1, x0, strip_b                     # a odd
+    bne     t1, x0, odd_sub                     # a odd
 strip_a_inner:
     srli    a0, a0, 1
     andi    t1, a0, 1
     beq     t1, x0, strip_a_inner               # a is even, back to strip_a_inner
+
+    j odd_sub
 
 # strip_b: while ((b & 1) == 0) b >>= 1
 strip_b:
@@ -269,6 +281,7 @@ strip_b_inner:
     beq     t1, x0, strip_b_inner               # b is even, back to strip_b_inner
 
     j odd_sub
+
 # odd_sub: both odd
 #   if (a > b) a = (a - b) >> 1     unsigned, srli
 #   else if (a < b) b = (b - a) >> 1
@@ -277,7 +290,7 @@ strip_b_inner:
 larger_b:
     sub     a1, a1, a0                          # b = b - a
     srli    a1, a1, 1
-    j       gcd_loop
+    j       strip_b
 
 
 gcd_done:
