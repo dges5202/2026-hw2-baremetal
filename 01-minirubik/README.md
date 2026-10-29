@@ -1,5 +1,5 @@
-# HW1 minirubik → bare-metal
+# Homework 1 minirubik → bare metal
 
-同一個 2×2 solver，換成 rv32emu 的 `write`(64) / `exit`(93)，加上 `start.S` 和 4 KiB stack。LED 拿掉。
+The same 2×2 solver, talking to rv32emu through `write` (64) / `exit` (93), with `start.S` and a 4 KiB stack. The LED path is dropped.
 
-C 與組語都要在 guest 上跑。host 參考：[`../../2026-hw1-minirubik/`](../../2026-hw1-minirubik/README.md)。
+Both the C version and the handwritten assembly must run on the guest. Host reference: [dges5202/minirubik](https://github.com/dges5202/minirubik).

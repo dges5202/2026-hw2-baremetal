@@ -1,109 +1,112 @@
-# 2026 Homework 2：Complete Applications
+# Assignment 2: Complete Applications
 
-作業原文：[Assignment 2: Complete Applications](https://hackmd.io/@sysprog/2026-arch-homework2)（本機快照：[`spec.md`](spec.md)）
+NCKU CSIE Computer Architecture, Fall 2026.
 
-**截止：2026-11-15 23:59 (GMT+8)**。頁面寫 **2026-10-28 13:00** 會再改規格／繳交方式，在那之前先當暫定。CodeTrial PIN 會在 **10/28 17:00 前** 寄到 `@gs.ncku.edu.tw`。
+- Spec: [Assignment 2: Complete Applications](https://hackmd.io/@sysprog/2026-arch-homework2) (local snapshot: [`spec.md`](spec.md))
+- Repository: https://github.com/dges5202/2026-hw2-baremetal
+- Due: **2026-11-15 23:59 (GMT+8)**
 
-## 這次在幹嘛（一句話）
+The spec page noted a possible update on **2026-10-28 13:00**. The CodeTrial PIN was due in `@gs.ncku.edu.tw` mailboxes before 17:00 that day.
 
-把四個程式（HW1 的 minirubik + Quiz1 BFloat16 + Quiz2 binary GCD + Quiz3 定點／位元邏輯）搬到 **沒有 OS、沒有 C 函式庫** 的 RV32I 環境，用 rv32emu 跑；每個都要有 **C 版、手寫組語、micro-test**；再用 CSR 量指令數、手寫組語要能跟 gcc 拚速度／體積；最後用 **CodeTrial 全程錄影口試**（沒錄影整份作業不算）。
+## In one sentence
 
-## 交什麼
+Port four programs (Homework 1 minirubik, Quiz 1 BFloat16, Quiz 2 binary GCD, Quiz 3 fixed-point / bitwise logic) to a **freestanding RV32I** environment on [rv32emu](https://github.com/sysprog21/rv32emu). Each program needs a C version, handwritten assembly, and a micro-test suite. Measure instruction counts with CSRs; the handwritten code should compete with gcc on speed and on size. Finish with a **recorded CodeTrial mock interview** (no recording means the assignment is not accepted).
 
-| 項目 | 截止 | 備註 |
+## Deliverables
+
+| Item | Due | Notes |
 | --- | --- | --- |
-| GitHub repo（四個程式的 C / 組語 / Makefile / linker / startup / tests） | Nov 15 23:59 | 不要整份 clone rv32emu |
-| HackMD 英文筆記 | Nov 15 23:59 | 只貼關鍵片段，連到 pinned commit |
-| CodeTrial mock interview 全程錄影 | 頁面 10/28 13:00 才會寫怎麼交 | 沒錄影 = 作業不收 |
-| Google 表單 | Nov 15 | https://forms.gle/GyNbSQzNoXdEELdFA |
+| GitHub repo (C, assembly, `Makefile`, linker, startup, tests for all four programs) | Nov 15 23:59 | Do not clone the whole rv32emu tree |
+| HackMD note, in English | Nov 15 23:59 | Short excerpts linked to pinned commits |
+| CodeTrial mock-interview recording | announced on the spec page | No recording: assignment not accepted |
+| [Google form](https://forms.gle/GyNbSQzNoXdEELdFA) | Nov 15 | Repo URL and HackMD URL |
 
-口試期間用任何 AI／TTS／翻譯幫忙 → **整學期作業 0 分**。
+Using any AI, TTS, or translation help **during the interview** zeroes the semester assignment grade.
 
-## 四個程式
+## The four programs
 
-每個都要：C、手寫 RV32I、完整 micro-test。只能用 `-march=rv32izicsr -mabi=ilp32`。`mul`/`div`/`rem` 和浮點指令都不准；編譯器叫得到的 `__mulsi3`、`memset` 等要自己寫。跟模擬器溝通只准 `write`(64) 和 `exit`(93)。
+Each needs C, handwritten RV32I, and a complete micro-test suite. Build with `-march=rv32izicsr -mabi=ilp32`. `mul` / `div` / `rem` and floating-point instructions are forbidden; supply helpers the compiler emits (`__mulsi3`, `memset`, …). Talk to the emulator only through `write` (64) and `exit` (93).
 
-| # | 來源 | 在做什麼 | RV32I 卡點 |
+| # | Source | What it does | RV32I pinch point |
 | --- | --- | --- | --- |
-| 1 | HW1 minirubik | 2×2 魔方 solver 從 Ripes 搬到 rv32emu | 換成 `write`/`exit`；**4 KiB stack** |
-| 2 | Quiz 1 B | BFloat16 運算（含 mantissa 乘、開方） | 沒有 `mul`，自己做 8-bit×8-bit；binary32 當 `uint32_t` 位元，不要用 `float` 算術 |
-| 3 | Quiz 2 A | binary GCD（用 shift／subtract，沒有 divider） | 已經是 RV32I；印十進位不能用除法；可用 ctz／`sltu` 再壓 |
-| 4 | Quiz 3 C | `op1`/`op2`/`op3` 位元加減，加上 Q11.20 的 `q_mul` | `q_mul` 要 32×32→64 有號乘法；硬體加減器／時序題不用 port |
+| 1 | HW1 minirubik | 2×2 cube solver, moved from Ripes to rv32emu | Replace env calls with `write`/`exit`; **4 KiB stack** |
+| 2 | Quiz 1 B | BFloat16 arithmetic (mantissa product, square root) | No `mul`: 8-bit×8-bit by hand; treat binary32 as `uint32_t` bits, no `float` math |
+| 3 | Quiz 2 A | Binary GCD (shift / subtract, no divider) | Already RV32I; decimal print without division; `ctz` / `sltu` for further cuts |
+| 4 | Quiz 3 C | `op1`/`op2`/`op3` bitwise add/sub, plus Q11.20 `q_mul` | `q_mul` needs 32×32→64 signed multiply; do not port the adder-delay / sequential-circuit questions |
 
-Quiz 3 C 的 Part 2–4（adder delay、sequential circuit）不是程式，不用搬。
+Quiz 3 C parts 2–4 (adder delay, sequential circuit) are not programs and are not ported.
 
-## 硬規則（評分會卡這裡）
+## Hard rules (graded)
 
-- 沒有 libc、沒有 libgcc、沒有 heap（playground 沒 allocator；真的要動態配置就自己寫 bump allocator）
-- 映像載入在 `0x10000`，stack 預設 4 KiB，不夠就改 `linker.ld` 但要量得過
-- 測試框架：[micro-test](https://github.com/trmckay/micro-test)，`-D NO_STD`，還要改掉它對 POSIX/`strlen` 的依賴（規格寫得很細）
-- 量測用 playground 的 `get_cycles()` / `get_instret()`（不要用 `ticks.c` 那份會被優化掉的寫法）
-- rv32emu **沒有 timing model**：`cycle` 和 `instret` 是同一個「執行了幾條 guest 指令」的計數，所以報告裡要講這件事，體積另外用 `size -A` 看 `.text` / `.rodata` / `.data` / `.bss`
-- 手寫組語要跟「最快的 gcc」比 cycle、跟「最小的 gcc」比 size；測過的每個 `-O*` 都要 micro-test 全過才算數
+- No libc, no libgcc, no heap (the playground has no allocator; a bump allocator is fine if you really need one).
+- Image loads at `0x10000`. Default stack is 4 KiB; grow `linker.ld` only if you measure that you must.
+- Tests: [micro-test](https://github.com/trmckay/micro-test), `-D NO_STD`, with its POSIX / `strlen` dependencies stripped (the spec lists the edits).
+- Measure with the playground `get_cycles()` / `get_instret()`. Do not use the `ticks.c` helper; an optimizing compiler can delete the work it times.
+- rv32emu **has no timing model**: `cycle` and `instret` both count executed guest instructions. State that in the note. Report size separately with `size -A` (`.text` / `.rodata` / `.data` / `.bss`).
+- Compare handwritten cycles to the fastest gcc build, and handwritten size to the smallest. Every `-O*` you report must pass every micro-test.
 
-## 資料夾
+## Layout
 
-| 路徑 | 內容 |
+| Path | Contents |
 | --- | --- |
-| [`spec.md`](spec.md) | 2026-10-27 09:04 抓的官方規格 |
-| [`refs/playground/`](refs/playground/) | [gist](https://gist.github.com/jserv/5f682ac880773cab69e3564f4f20d60a)：`start.S`、`linker.ld`、`perfcounter.S`、ChaCha20 範例 |
+| [`spec.md`](spec.md) | Official spec snapshot (2026-10-27 09:04) |
+| [`refs/playground/`](refs/playground/) | [gist](https://gist.github.com/jserv/5f682ac880773cab69e3564f4f20d60a): `start.S`, `linker.ld`, `perfcounter.S`, ChaCha20 sample |
 | [`refs/micro-test/`](refs/micro-test/) | `utest.c` / `utest.h` |
-| [`refs/hackmd/lab2-bare-metal.md`](refs/hackmd/lab2-bare-metal.md) | Lab2 |
-| [`refs/hackmd/bf16-sine.md`](refs/hackmd/bf16-sine.md) | 筆記範例（BF16 sine；裡面的浮點指令這次不准用） |
-| [`refs/hackmd/line-draw-fixed-point.md`](refs/hackmd/line-draw-fixed-point.md) | 筆記範例（定點畫線） |
-| [`refs/rv32emu-files/`](refs/rv32emu-files/) | `ticks.c`、`syscall.md` |
-| [`refs/github/codetrial-pr-259.md`](refs/github/codetrial-pr-259.md) | CodeTrial task mode PR（仍 open） |
-| [`refs/imgs/`](refs/imgs/) | 規格頁上的 CodeTrial 截圖 |
+| [`refs/hackmd/lab2-bare-metal.md`](refs/hackmd/lab2-bare-metal.md) | Lab 2 |
+| [`refs/hackmd/bf16-sine.md`](refs/hackmd/bf16-sine.md) | Reference note (BF16 sine; its FP instructions are not allowed here) |
+| [`refs/hackmd/line-draw-fixed-point.md`](refs/hackmd/line-draw-fixed-point.md) | Reference note (fixed-point line drawing) |
+| [`refs/rv32emu-files/`](refs/rv32emu-files/) | `ticks.c`, `syscall.md` |
+| [`refs/github/codetrial-pr-259.md`](refs/github/codetrial-pr-259.md) | CodeTrial task-mode PR (still open) |
+| [`refs/imgs/`](refs/imgs/) | CodeTrial screenshots from the spec page |
 
-實作不要寫在這個 refs 裡。交出去的 repo 只該有「從 gist 拷出來、改過相對路徑」的 playground 目錄。
+Do not write the programs under `refs/`. The submitted tree should contain a playground copied from the gist, with relative paths adjusted.
 
-四個程式的工作目錄：
-
-| 資料夾 | 狀態 |
+| Directory | Status |
 | --- | --- |
-| [`01-minirubik/`](01-minirubik/) | 待 port |
-| [`02-bf16/`](02-bf16/) | 待寫 |
-| [`03-gcd/`](03-gcd/) | 手寫 RV32I + host C + bench（gcd-only 652→400）；micro-test／gcc 比較還沒收 |
-| [`04-logic/`](04-logic/) | 待寫 |
+| [`01-minirubik/`](01-minirubik/) | Not started |
+| [`02-bf16/`](02-bf16/) | Not started |
+| [`03-gcd/`](03-gcd/) | Handwritten RV32I + host C + bench (gcd-only 652→400). micro-test and gcc comparison still open |
+| [`04-logic/`](04-logic/) | Not started |
 
-HW1 的 minirubik 在 [`../2026-hw1-minirubik/`](../2026-hw1-minirubik/README.md)。Quiz 題解：
+Homework 1 sources: [dges5202/minirubik](https://github.com/dges5202/minirubik). Quiz solutions:
 
-- BFloat16：[`../../weeks/02-quiz1-riscv-intro/quiz/2026-quiz1-sol.md`](../../weeks/02-quiz1-riscv-intro/quiz/2026-quiz1-sol.md)
-- binary GCD：[`../../weeks/04-quiz2-instruction-format/quiz/2026-quiz2-sol.md`](../../weeks/04-quiz2-instruction-format/quiz/2026-quiz2-sol.md)（卷面標題是 Two Operands）
-- Two Kinds of Logic：[`../../weeks/07-quiz3/quiz/2026-quiz3-sol.md`](../../weeks/07-quiz3/quiz/2026-quiz3-sol.md)
+- BFloat16: [Quiz 1](https://hackmd.io/@sysprog/arch2026-quiz1)
+- Binary GCD: [Quiz 2](https://hackmd.io/@sysprog/arch2026-quiz2) (title on the paper: Two Operands)
+- Two Kinds of Logic: [Quiz 3](https://hackmd.io/@sysprog/arch2026-quiz3)
 
-## 本機環境（已搭好、已測過）
+GCD note draft (English): [`03-gcd/notes/hackmd.md`](03-gcd/notes/hackmd.md).
 
-模擬器在 [`rv32emu/`](rv32emu/)（**不要交進作業 repo**）。每次新開 terminal：
+## Local environment (built and checked)
+
+The emulator lives in [`rv32emu/`](rv32emu/) (**gitignored; do not submit it**). In a new terminal:
 
 ```bash
-cd homework/2026-hw2-baremetal
 source env.sh
 playground-run -O0
 playground-run -O2
 ```
 
-| 項目 | 本機紀錄（2026-10-27） |
+| Item | Recorded 2026-10-27 |
 | --- | --- |
-| rv32emu | `cab9a11`，`system_defconfig` + `CONFIG_ELF_LOADER=y`，無 SDL／無 Linux boot（這台沒裝 libsdl2、dtc，HW2 用不到） |
-| 交叉編譯器 | `riscv64-unknown-elf-gcc` 16.1.0（`tools/riscv/`，HW1 同一套） |
-| playground | gist `5f682ac880773cab69e3564f4f20d60a` 在 `rv32emu/tests/system/playground` |
-| Makefile 修正 | `riscv64-unknown-elf-ld` 預設是 elf64，已加 `-m elf32lriscv` |
+| rv32emu | `cab9a11`, `system_defconfig` + `CONFIG_ELF_LOADER=y`, no SDL / no Linux boot (this machine has no libsdl2 or dtc; Homework 2 does not need them) |
+| Cross compiler | `riscv64-unknown-elf-gcc` 16.1.0 (same tree as Homework 1) |
+| Playground | gist `5f682ac880773cab69e3564f4f20d60a` at `rv32emu/tests/system/playground` |
+| Makefile fix | `riscv64-unknown-elf-ld` defaults to elf64; added `-m elf32lriscv` |
 
-playground `make run`：
+Playground `make run`:
 
-| OPT | 結果 | ChaCha20 cycles / instret |
+| OPT | Result | ChaCha20 cycles / instret |
 | --- | --- | --- |
-| `-O0` | 8 PASSED, 0 FAILED | 6797 / 6797（與 Lab2 手冊相同） |
+| `-O0` | 8 PASSED, 0 FAILED | 6797 / 6797 (matches the Lab 2 handout) |
 | `-O2` | 8 PASSED, 0 FAILED | 4322 / 4323 |
 
-之後自己的 ELF：`rv32emu path/to/prog.elf`。
+Later ELFs: `rv32emu path/to/prog.elf`.
 
-## 建議順序
+## Suggested order
 
-1. ~~依 Lab2 編 rv32emu……~~ 已完成。
-2. 改 micro-test 讓它能在 bare-metal 印東西（這是四個程式的共同地基）。
-3. 先 port 最小的：Quiz 2 GCD（[`03-gcd/`](03-gcd/)，host 上 `make test`）。
-4. Quiz 1 BF16、Quiz 3 `q_mul`、最後 minirubik（stack 4 KiB 最痛）。
-5. 對每個程式做 gcc `-O2/-O3/-Os` vs 手寫組語的表。
-6. HackMD；同時準備 Gemini / LiveKit / GitHub OAuth，等 10/28 的 PIN 信。
+1. ~~Build rv32emu from Lab 2.~~ Done.
+2. Port micro-test so it can print on bare metal (shared by all four programs).
+3. Smallest port first: Quiz 2 GCD ([`03-gcd/`](03-gcd/), `make test` on the host).
+4. Quiz 1 BF16, Quiz 3 `q_mul`, then minirubik (the 4 KiB stack is the tight one).
+5. For each program, a table of gcc `-O2`/`-O3`/`-Os` vs handwritten assembly.
+6. HackMD. In parallel: Gemini / LiveKit / GitHub OAuth, and the CodeTrial PIN mail.

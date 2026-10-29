@@ -1,7 +1,7 @@
 /*
  * Host-side harness for Quiz 2 binary GCD.
  *
- * 你只填 gcd()。測資、main、include 都在下面。
+ * gcd() is the function under test. Cases, main, and includes are below.
  *   make test
  */
 
