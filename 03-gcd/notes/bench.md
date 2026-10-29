@@ -38,6 +38,7 @@ riscv64-unknown-elf-size -A gcd.elf
 | `577ecda` | reorder: `strip_b` falls into `odd_sub`, `strip_a1` into `strip_b` | 544 | 544 | 1.00 | 828 | 124 | 24 | 160 |
 | `9fe12b6` | `even_loop`: binary 16/8/4/2/1 shift of `ctz(a\|b)` | 439 | 439 | 1.00 | 860 | 124 | 24 | 192 |
 | `97c3cba` | `even_loop`: 1-bit when `(a\|b)&0xF != 0`, else binary; `li` after odd check | 403 | 403 | 1.00 | 900 | 124 | 24 | 232 |
+| `9780d53` | drop redundant `or` before nibble test (`t1` still `a\|b`) | 400 | 400 | 1.00 | 896 | 124 | 24 | 228 |
 
 Append a row for every later commit that changes `gcd` (fall-through, ctz, `sltu`, …). Tooling-only commits stay out, same as Homework 1.
 
@@ -167,6 +168,20 @@ Odd pairs pay `li t5` / `li t6` even though they skip inner. `(6, 10)` only shar
 | (0, 91) | 91 | 28 / 14 | 7 | 0 |
 | (6, 10) | 2 | 61 / 47 | 40 | **−36** |
 | **sum** | | 529 / 445 | **403** | **−36** |
+
+### After dropping the extra `or` (`9780d53`)
+
+`t1` still holds `a | b` after the parity `andi`.
+
+| Pair | Result | Window cyc / iret | Gcd-only | Δ vs `97c3cba` |
+| :--- | ---: | ---: | ---: | ---: |
+| (1071, 462) | 21 | 74 / 60 | 53 | 0 |
+| (4096, 3072) | 1024 | 94 / 80 | 73 | −1 |
+| (0xF0000000, 0x30000000) | 805306368 | 86 / 72 | 65 | −1 |
+| (0x80000001, 3) | 3 | 184 / 170 | 163 | 0 |
+| (0, 91) | 91 | 28 / 14 | 7 | 0 |
+| (6, 10) | 2 | 60 / 46 | 39 | −1 |
+| **sum** | | 526 / 442 | **400** | **−3** |
 
 ## Memory (instrumented ELF)
 
