@@ -29,11 +29,11 @@ riscv64-unknown-elf-size -A gcd.elf
 | Commit | Change | Retired (6 pairs, gcd-only) | Cycles (gcd-only) | CPI | `.text` | `.rodata` | `.bss` | `gcd` bytes |
 | :--- | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | `8a44795` | first working Stein (`even_loop` / `strip_*` / `odd_sub`); no CSR window | — | — | — | — | — | — | — |
-| *this tree* | same `gcd`, CSR window + `print_cycret` (baseline to optimize against) | 652 | 652 | 1.00 | 792 | 124 | 24 | 124 |
+| `958ff64` | same `gcd`, CSR window + `print_cycret` (baseline to optimize against) | 652 | 652 | 1.00 | 792 | 124 | 24 | 124 |
 
-Fill the *this tree* hash when this bench commit lands. Append a row for every later commit that changes `gcd` (fall-through, ctz, `sltu`, …). Tooling-only commits stay out, same as Homework 1.
+Append a row for every later commit that changes `gcd` (fall-through, ctz, `sltu`, …). Tooling-only commits stay out, same as Homework 1.
 
-## Baseline per pair (`8a44795` `gcd` + CSR window)
+## Baseline per pair (`958ff64`)
 
 | Pair | Result | Window cyc / iret | Gcd-only |
 | :--- | ---: | ---: | ---: |
