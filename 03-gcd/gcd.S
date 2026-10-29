@@ -230,8 +230,7 @@ even_loop:
     or      t1, a0, a1                          # t1 = a | b
     andi    t2, t1, 1                           # t2 = parity
     bne     t2, x0, strip_a1                    # one side odd: stop
-
-    or      t1, a0, a1                          # t1 = a | b
+    
     andi    t2, t1, 0xF                         # t2 = (a | b) & 0xF
     beq     t2, x0, even_loop_skip              # k >= 4: binary
 
