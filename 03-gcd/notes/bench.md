@@ -34,8 +34,7 @@ riscv64-unknown-elf-size -A gcd.elf
 | `2b46ee8` | `strip_a` / `strip_b`: same bottom-tested inner loops | 593 | 593 | 1.00 | 808 | 124 | 24 | 140 |
 | `d489786` | `a > b` subtract falls into `gcd_loop` (**kept**) | 578 | 578 | 1.00 | 812 | 124 | 24 | 144 |
 | `de064c5` | `larger_b` (`a < b`) falls into `gcd_loop` (not kept) | 592 | 592 | 1.00 | 808 | 124 | 24 | 140 |
-
-Kept `d489786` (`a > b` arm). `de064c5` stays in history; it loses 15 instret on `(0x80000001, 3)`.
+| `99e8e2b` | after subtract, only strip the side just made even | 546 | 546 | 1.00 | 836 | 124 | 24 | 168 |
 
 Append a row for every later commit that changes `gcd` (fall-through, ctz, `sltu`, …). Tooling-only commits stay out, same as Homework 1.
 
@@ -105,6 +104,22 @@ Compare with the `a > b` layout above. Not kept: `(0x80000001, 3)` is the hot `a
 | (0, 91) | 91 | 28 / 14 | 7 | 0 | 0 |
 | (6, 10) | 2 | 62 / 48 | 41 | 0 | 0 |
 | **sum** | | 718 / 634 | **592** | **−1** | **+14** |
+
+### After only-strip-the-changed-side (`99e8e2b`)
+
+First entry still goes through `strip_a1` then `strip_b`. After `a > b`, only `strip_a`; after `larger_b`, only `strip_b`.
+
+| Pair | Result | Window cyc / iret | Gcd-only | Δ vs `d489786` |
+| :--- | ---: | ---: | ---: | ---: |
+| (1071, 462) | 21 | 75 / 61 | 54 | −7 |
+| (4096, 3072) | 1024 | 112 / 98 | 91 | −2 |
+| (0xF0000000, 0x30000000) | 805306368 | 216 / 202 | 195 | −2 |
+| (0x80000001, 3) | 3 | 184 / 170 | 163 | **−16** |
+| (0, 91) | 91 | 28 / 14 | 7 | 0 |
+| (6, 10) | 2 | 57 / 43 | 36 | −5 |
+| **sum** | | 672 / 588 | **546** | **−32** |
+
+`(0x80000001, 3)` no longer pays `strip_b` on the `a > b` arm. `gcd` grew 144 → 168 for the extra `strip_a1` copy.
 
 ## Memory (instrumented ELF)
 
