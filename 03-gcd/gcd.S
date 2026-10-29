@@ -247,15 +247,19 @@ gcd_loop:
 strip_a:
     andi    t1, a0, 1
     bne     t1, x0, strip_b                     # a odd
+strip_a_inner:
     srli    a0, a0, 1
-    j       strip_a
+    andi    t1, a0, 1
+    beq     t1, x0, strip_a_inner               # a is even, back to strip_a_inner
 
 # strip_b: while ((b & 1) == 0) b >>= 1
 strip_b:
     andi    t1, a1, 1
     bne     t1, x0, odd_sub                     # b odd
+strip_b_inner:
     srli    a1, a1, 1
-    j       strip_b
+    andi    t1, a1, 1
+    beq     t1, x0, strip_b_inner               # b is even, back to strip_b_inner
 
 # odd_sub: both odd
 #   if (a > b) a = (a - b) >> 1     unsigned, srli
