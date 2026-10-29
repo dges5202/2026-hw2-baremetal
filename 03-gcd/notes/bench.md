@@ -30,7 +30,7 @@ riscv64-unknown-elf-size -A gcd.elf
 | :--- | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | `8a44795` | first working Stein (`even_loop` / `strip_*` / `odd_sub`); no CSR window | — | — | — | — | — | — | — |
 | `958ff64` | same `gcd`, CSR window + `print_cycret` (baseline to optimize against) | 652 | 652 | 1.00 | 792 | 124 | 24 | 124 |
-| *uncommitted* | `even_loop`: test at the bottom, `beq` back to body, fall into `gcd_loop` | 613 | 613 | 1.00 | 800 | 124 | 24 | 132 |
+| `e7c4534` | `even_loop`: test at the bottom, `beq` back to body, fall into `gcd_loop` | 613 | 613 | 1.00 | 800 | 124 | 24 | 132 |
 
 Append a row for every later commit that changes `gcd` (fall-through, ctz, `sltu`, …). Tooling-only commits stay out, same as Homework 1.
 
@@ -49,7 +49,7 @@ Append a row for every later commit that changes `gcd` (fall-through, ctz, `sltu
 
 The two unsigned-heavy pairs dominate. `(0, 91)` is the early return; treat it as a smoke check, not a speed target.
 
-### After `even_loop` fall-through (uncommitted)
+### After `even_loop` fall-through (`e7c4534`)
 
 | Pair | Result | Window cyc / iret | Gcd-only | Δ vs `958ff64` |
 | :--- | ---: | ---: | ---: | ---: |
