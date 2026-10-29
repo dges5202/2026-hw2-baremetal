@@ -63,7 +63,7 @@ Quiz 3 C 的 Part 2–4（adder delay、sequential circuit）不是程式，不�
 | --- | --- |
 | [`01-minirubik/`](01-minirubik/) | 待 port |
 | [`02-bf16/`](02-bf16/) | 待寫 |
-| [`03-gcd/`](03-gcd/) | host C 框架（`make test`） |
+| [`03-gcd/`](03-gcd/) | 手寫 RV32I + host C + bench（gcd-only 652→400）；micro-test／gcc 比較還沒收 |
 | [`04-logic/`](04-logic/) | 待寫 |
 
 HW1 的 minirubik 在 [`../2026-hw1-minirubik/`](../2026-hw1-minirubik/README.md)。Quiz 題解：
