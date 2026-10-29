@@ -30,6 +30,7 @@ riscv64-unknown-elf-size -A gcd.elf
 | :--- | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | `8a44795` | first working Stein (`even_loop` / `strip_*` / `odd_sub`); no CSR window | — | — | — | — | — | — | — |
 | `958ff64` | same `gcd`, CSR window + `print_cycret` (baseline to optimize against) | 652 | 652 | 1.00 | 792 | 124 | 24 | 124 |
+| *uncommitted* | `even_loop`: test at the bottom, `beq` back to body, fall into `gcd_loop` | 613 | 613 | 1.00 | 800 | 124 | 24 | 132 |
 
 Append a row for every later commit that changes `gcd` (fall-through, ctz, `sltu`, …). Tooling-only commits stay out, same as Homework 1.
 
@@ -47,6 +48,18 @@ Append a row for every later commit that changes `gcd` (fall-through, ctz, `sltu
 | probe (empty window) | | 21 / 7 | 0 |
 
 The two unsigned-heavy pairs dominate. `(0, 91)` is the early return; treat it as a smoke check, not a speed target.
+
+### After `even_loop` fall-through (uncommitted)
+
+| Pair | Result | Window cyc / iret | Gcd-only | Δ vs `958ff64` |
+| :--- | ---: | ---: | ---: | ---: |
+| (1071, 462) | 21 | 86 / 72 | 65 | 0 |
+| (4096, 3072) | 1024 | 115 / 101 | 94 | −10 |
+| (0xF0000000, 0x30000000) | 805306368 | 219 / 205 | 198 | −28 |
+| (0x80000001, 3) | 3 | 229 / 215 | 208 | 0 |
+| (0, 91) | 91 | 28 / 14 | 7 | 0 |
+| (6, 10) | 2 | 62 / 48 | 41 | −1 |
+| **sum** | | 739 / 655 | **613** | **−39** |
 
 ## Memory (instrumented ELF)
 

@@ -228,10 +228,17 @@ even_loop:
     or      t1, a0, a1                          # t1 = a | b
     andi    t2, t1, 1                           # t2 = parity
     bne     t2, x0, gcd_loop                    # one side odd: stop
+
+
+even_loop_inner:
     srli    a0, a0, 1
     srli    a1, a1, 1
     addi    t0, t0, 1
-    j       even_loop
+
+    or      t1, a0, a1                          # t1 = a | b
+    andi    t2, t1, 1                           # t2 = parity
+    beq     t2, x0, even_loop_inner             # both a and b are even, loop
+
 
 # gcd_loop: strip trailing twos, then odd_sub, until a == b
 gcd_loop:
