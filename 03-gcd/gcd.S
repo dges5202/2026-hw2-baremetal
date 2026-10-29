@@ -1,6 +1,6 @@
 # RV32I binary GCD.  Follows gcd.c.
 #
-# No mul / div / rem.  Shifts are logical (srli / sll, never srai).
+# No mul / div / rem.  Shifts are logical (srli / srl / sll, never srai).
 # Compares are unsigned (bltu / bgeu, never blt / bge): pair 3 has bit 31 set.
 # Guest ecalls: write = 64, exit = 93.  No print-integer syscall; decimal is
 # repeated subtraction of pow10[].  No stack: leaf functions inline ecall,
@@ -8,7 +8,7 @@
 #
 # gcd:
 #   a0 = a / return     a1 = b     t0 = count (shared twos)
-#   t1, t2 = scratch
+#   t1, t2 = scratch    t5 = mask width (16..1)    t6 = low-ones mask
 #
 # main (live across jal gcd / print_u32 / get_cycles):
 #   s0 = &vals[i]       s1 = remaining pairs
@@ -221,84 +221,91 @@ gcd:
     beq     a0, x0, return_a                    # a == 0: return b
     beq     a1, x0, return_b                    # b == 0: return a
     li      t0, 0                               # t0 = count
-    li      t5, 16                              # t5 = mask_count
-    li      t6, 0xFFFF                          # t6 = even_mask
 
-# even_loop: while ((a | b) & 1) == 0
-#   a >>= 1, b >>= 1, count++
+# even_loop: fold shared twos into t0.
+#   already odd          -> strip_a1
+#   (a | b) & 0xF != 0   -> k = 1,2,3: 1-bit (shortcut)
+#   else                 -> k >= 4: binary 16/8/4/2/1 (skip)
 even_loop:
     or      t1, a0, a1                          # t1 = a | b
     andi    t2, t1, 1                           # t2 = parity
     bne     t2, x0, strip_a1                    # one side odd: stop
 
+    or      t1, a0, a1                          # t1 = a | b
+    andi    t2, t1, 0xF                         # t2 = (a | b) & 0xF
+    beq     t2, x0, even_loop_skip              # k >= 4: binary
 
-even_loop_inner:
-    or t1, a0, a1                               # t1 = a | b
-    and t2, t1, t6                              # t2 = (a | b) & even_mask
-
-    bne t2, x0, even_loop_inner1 
-
-    srl     a0, a0, t5                          # a >> mask_bits
-    srl     a1, a1, t5                          # b >> mask_bits
-    add     t0, t0, t5                          # t0 = count + mask_bits
-
-even_loop_inner1:
-    srli    t5, t5, 1                           # mask_count / 2
-    srl     t6, t6, t5                          # even_mask.bit / 2
-
+even_loop_shortcut:
+    srli    a0, a0, 1                           # a >>= 1
+    srli    a1, a1, 1                           # b >>= 1
+    addi    t0, t0, 1                           # count++
     or      t1, a0, a1                          # t1 = a | b
     andi    t2, t1, 1                           # t2 = parity
-    beq     t2, x0, even_loop_inner             # both a and b are even, loop
+    beq     t2, x0, even_loop_shortcut          # still both even
+    j       strip_a1
 
+even_loop_skip:
+    li      t5, 16                              # t5 = mask width
+    li      t6, 0xFFFF                          # t6 = 16 low ones
 
+even_loop_inner:
+    or      t1, a0, a1                          # t1 = a | b
+    and     t2, t1, t6                          # t2 = (a | b) & mask
+    bne     t2, x0, even_loop_inner1            # low t5 bits not all 0
 
+    srl     a0, a0, t5                          # a >>= k
+    srl     a1, a1, t5                          # b >>= k
+    add     t0, t0, t5                          # count += k
+
+even_loop_inner1:
+    srli    t5, t5, 1                           # k /= 2
+    srl     t6, t6, t5                          # mask = low k ones
+    or      t1, a0, a1                          # t1 = a | b
+    andi    t2, t1, 1                           # t2 = parity
+    beq     t2, x0, even_loop_inner             # still both even
+
+# First entry: peel leftover twos on both sides, then odd_sub.
+# After a > b: only strip_a (b still odd). After larger_b: only strip_b.
 strip_a1:
     andi    t1, a0, 1
     bne     t1, x0, strip_b                     # a odd
 strip_a1_inner:
-    srli    a0, a0, 1
+    srli    a0, a0, 1                           # a >>= 1
     andi    t1, a0, 1
-    beq     t1, x0, strip_a1_inner               # a is even, back to strip_a1_inner
+    beq     t1, x0, strip_a1_inner              # a still even
 
-# gcd_loop: strip trailing twos, then odd_sub, until a == b
 gcd_loop:
-
-# strip_b: while ((b & 1) == 0) b >>= 1
 strip_b:
     andi    t1, a1, 1
     bne     t1, x0, odd_sub                     # b odd
 strip_b_inner:
-    srli    a1, a1, 1
+    srli    a1, a1, 1                           # b >>= 1
     andi    t1, a1, 1
-    beq     t1, x0, strip_b_inner               # b is even, back to strip_b_inner
+    beq     t1, x0, strip_b_inner               # b still even
+                                                # fall into odd_sub
 
+# odd_sub: both odd.  Equal before sub.  Unsigned, srli.
+#   a > b: a = (a - b) >> 1, strip_a only
+#   a < b: b = (b - a) >> 1, strip_b only
 odd_sub:
     beq     a0, a1, gcd_done                    # equal: before sub
     bltu    a0, a1, larger_b                    # a < b
     sub     a0, a0, a1                          # a = a - b
-    srli    a0, a0, 1
+    srli    a0, a0, 1                           # fall into strip_a
 
-# strip_a: while ((a & 1) == 0) a >>= 1
 strip_a:
     andi    t1, a0, 1
     bne     t1, x0, odd_sub                     # a odd
 strip_a_inner:
-    srli    a0, a0, 1
+    srli    a0, a0, 1                           # a >>= 1
     andi    t1, a0, 1
-    beq     t1, x0, strip_a_inner               # a is even, back to strip_a_inner
-
-    j odd_sub
-
-# odd_sub: both odd
-#   if (a > b) a = (a - b) >> 1     unsigned, srli
-#   else if (a < b) b = (b - a) >> 1
-#   else break
+    beq     t1, x0, strip_a_inner               # a still even
+    j       odd_sub                             # do not fall into larger_b
 
 larger_b:
     sub     a1, a1, a0                          # b = b - a
     srli    a1, a1, 1
     j       strip_b
-
 
 gcd_done:
     sll     a0, a0, t0                          # put shared twos back
@@ -319,48 +326,43 @@ return_b:
 #   else started = 1, buf[0] = '0' + digit, write(buf, 1)
 # Last power always prints, so 0 becomes "0".
 print_u32:
-    mv s5, a0                                   # s5 = a0
-    la s6, pow10                                # s6 = &pow10[0]
-    li s7, 10                                   # s7 = powers left
-    mv s8, x0                                   # s8 = started
+    mv      s5, a0                              # s5 = x
+    la      s6, pow10                           # s6 = &pow10[0]
+    li      s7, 10                              # s7 = powers left
+    mv      s8, x0                              # s8 = started
 
 pu_pow:
-    beq s7, x0, pu_done                          #if s7 == 0, goto pu_done
-    lw t1, 0(s6)                                # t1 = pow10[i]
-    li t0, 0                                    # t0 = digit
+    beq     s7, x0, pu_done                     # no powers left
+    lw      t1, 0(s6)                           # t1 = pow10[i]
+    li      t0, 0                               # t0 = digit
 
 pu_sub:
-    bltu s5, t1, pu_emit                        # if s5 < t1, goto pu_emit
-    sub s5, s5, t1                              # s5 -= t1
-    addi t0, t0, 1                              # t0 += 1
-
-    j pu_sub
+    bltu    s5, t1, pu_emit                     # x < pow
+    sub     s5, s5, t1                          # x -= pow
+    addi    t0, t0, 1                           # digit++
+    j       pu_sub
 
 pu_emit:
-    li t2, 1                                    # t2 = 1
-    bne t0, x0, pu_write                        # if t0 != 0 goto pu_write
-    bne s8, x0, pu_write                        # if s8 != 0 goto pu_write
-    beq s7, t2, pu_write                        # if s7 == 1 goto pu_write
-
-    j pu_next
+    li      t2, 1                               # t2 = 1 (last power)
+    bne     t0, x0, pu_write                    # digit != 0
+    bne     s8, x0, pu_write                    # already started
+    beq     s7, t2, pu_write                    # last power: print 0
+    j       pu_next
 
 pu_write:
-    li s8, 1                                    # s8 = 1
-    addi t0, t0, 48                             # t0 += 48
-    la a1, buf                                  # a1 = &buf
-    sb t0, 0(a1)                                # save t0 to buf    
-
-    # a1 = buf, a2 = 1, a0 = 1, a7 = 64, ecall
-                            
-    li a2, 1                                    
-    li a0, 1
-    li a7, 64
+    li      s8, 1                               # started
+    addi    t0, t0, 48                          # '0' + digit
+    la      a1, buf                             # a1 = &buf
+    sb      t0, 0(a1)                           # buf[0] = ascii
+    li      a2, 1                               # a2 = 1
+    li      a0, 1                               # fd = stdout
+    li      a7, 64                              # write
     ecall
 
 pu_next:
-    addi s6, s6, 4                              # s6 += 4
-    addi s7, s7, -1                             # s7 -= 1
-    j pu_pow
+    addi    s6, s6, 4                           # next power
+    addi    s7, s7, -1
+    j       pu_pow
 
 pu_done:
     ret
