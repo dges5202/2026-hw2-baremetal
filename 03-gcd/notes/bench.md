@@ -37,6 +37,7 @@ riscv64-unknown-elf-size -A gcd.elf
 | `99e8e2b` | after subtract, only strip the side just made even | 546 | 546 | 1.00 | 836 | 124 | 24 | 168 |
 | `577ecda` | reorder: `strip_b` falls into `odd_sub`, `strip_a1` into `strip_b` | 544 | 544 | 1.00 | 828 | 124 | 24 | 160 |
 | `9fe12b6` | `even_loop`: binary 16/8/4/2/1 shift of `ctz(a\|b)` | 439 | 439 | 1.00 | 860 | 124 | 24 | 192 |
+| `97c3cba` | `even_loop`: 1-bit when `(a\|b)&0xF != 0`, else binary; `li` after odd check | 403 | 403 | 1.00 | 900 | 124 | 24 | 232 |
 
 Append a row for every later commit that changes `gcd` (fall-through, ctz, `sltu`, …). Tooling-only commits stay out, same as Homework 1.
 
@@ -152,6 +153,20 @@ Shift both by 16, then 8, 4, 2, 1 when the low bits of `a | b` are zero. `t5`/`t
 | **sum** | | 565 / 481 | **439** | **−105** |
 
 Odd pairs pay `li t5` / `li t6` even though they skip inner. `(6, 10)` only shares one two but still walks 16→1.
+
+### After nibble split + delayed `li` (`97c3cba`)
+
+`(a | b) & 0xF != 0` uses the old 1-bit peel (`k = 1,2,3`). Otherwise binary 16/8/4/2/1. `t5`/`t6` are set only after the odd check.
+
+| Pair | Result | Window cyc / iret | Gcd-only | Δ vs `9fe12b6` |
+| :--- | ---: | ---: | ---: | ---: |
+| (1071, 462) | 21 | 74 / 60 | 53 | −3 |
+| (4096, 3072) | 1024 | 95 / 81 | 74 | +3 |
+| (0xF0000000, 0x30000000) | 805306368 | 87 / 73 | 66 | +3 |
+| (0x80000001, 3) | 3 | 184 / 170 | 163 | −3 |
+| (0, 91) | 91 | 28 / 14 | 7 | 0 |
+| (6, 10) | 2 | 61 / 47 | 40 | **−36** |
+| **sum** | | 529 / 445 | **403** | **−36** |
 
 ## Memory (instrumented ELF)
 
