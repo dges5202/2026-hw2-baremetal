@@ -36,6 +36,7 @@ riscv64-unknown-elf-size -A gcd.elf
 | `de064c5` | `larger_b` (`a < b`) falls into `gcd_loop` (not kept) | 592 | 592 | 1.00 | 808 | 124 | 24 | 140 |
 | `99e8e2b` | after subtract, only strip the side just made even | 546 | 546 | 1.00 | 836 | 124 | 24 | 168 |
 | `577ecda` | reorder: `strip_b` falls into `odd_sub`, `strip_a1` into `strip_b` | 544 | 544 | 1.00 | 828 | 124 | 24 | 160 |
+| `9fe12b6` | `even_loop`: binary 16/8/4/2/1 shift of `ctz(a\|b)` | 439 | 439 | 1.00 | 860 | 124 | 24 | 192 |
 
 Append a row for every later commit that changes `gcd` (fall-through, ctz, `sltu`, …). Tooling-only commits stay out, same as Homework 1.
 
@@ -135,6 +136,22 @@ First entry still goes through `strip_a1` then `strip_b`. After `a > b`, only `s
 | (0, 91) | 91 | 28 / 14 | 7 | 0 |
 | (6, 10) | 2 | 57 / 43 | 36 | 0 |
 | **sum** | | 670 / 586 | **544** | **−2** |
+
+### After binary `even_loop` (`9fe12b6`)
+
+Shift both by 16, then 8, 4, 2, 1 when the low bits of `a | b` are zero. `t5`/`t6` are set once at `gcd` entry.
+
+| Pair | Result | Window cyc / iret | Gcd-only | Δ vs `577ecda` |
+| :--- | ---: | ---: | ---: | ---: |
+| (1071, 462) | 21 | 77 / 63 | 56 | **+3** |
+| (4096, 3072) | 1024 | 92 / 78 | 71 | −19 |
+| (0xF0000000, 0x30000000) | 805306368 | 84 / 70 | 63 | **−132** |
+| (0x80000001, 3) | 3 | 187 / 173 | 166 | **+3** |
+| (0, 91) | 91 | 28 / 14 | 7 | 0 |
+| (6, 10) | 2 | 97 / 83 | 76 | **+40** |
+| **sum** | | 565 / 481 | **439** | **−105** |
+
+Odd pairs pay `li t5` / `li t6` even though they skip inner. `(6, 10)` only shares one two but still walks 16→1.
 
 ## Memory (instrumented ELF)
 
