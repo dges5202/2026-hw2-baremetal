@@ -25,8 +25,11 @@ asm: gcd.elf
 gcd.o: gcd.S
 	$(CROSS)as $(AFLAGS) $< -o $@
 
-gcd.elf: gcd.o linker.ld
-	$(CROSS)ld $(LDFLAGS) -o $@ gcd.o
+perfcounter.o: perfcounter.S
+	$(CROSS)as $(AFLAGS) $< -o $@
+
+gcd.elf: gcd.o perfcounter.o linker.ld
+	$(CROSS)ld $(LDFLAGS) -o $@ gcd.o perfcounter.o
 
 run-asm: gcd.elf
 	$(EMU) $<
@@ -35,4 +38,4 @@ dump-asm: gcd.elf
 	$(CROSS)objdump -d $<
 
 clean:
-	$(RM) gcd gcd.o gcd.elf
+	$(RM) gcd gcd.o perfcounter.o gcd.elf

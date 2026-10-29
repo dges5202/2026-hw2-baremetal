@@ -26,4 +26,6 @@ f(0, 91) = 91
 f(6, 10) = 2
 ```
 
-之後才做 micro-test、ctz / `sltu` 優化。
+量測與 commit 紀錄（格式跟 HW1 階段五大表一樣）在 [`notes/bench.md`](notes/bench.md)。只包 `gcd`，不含 `print_u32`。rv32emu 的 cycle 與 instret 是同一種計數，表上的 CPI 扣掉 probe 後是 1。
+
+之後才做 micro-test、ctz / `sltu` / fall-through；每改一版就在那張表加一列。

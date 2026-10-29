@@ -10,11 +10,12 @@
 #   a0 = a / return     a1 = b     t0 = count (shared twos)
 #   t1, t2 = scratch
 #
-# main (live across jal gcd / print_u32):
+# main (live across jal gcd / print_u32 / get_cycles):
 #   s0 = &vals[i]       s1 = remaining pairs
 #   s2 = a              s3 = b              s4 = gcd(a, b)
+#   s9 = cycle delta    s10 = instret delta     (gcd window only)
 #
-# print_u32 (do not touch s0-s4 or ra):
+# print_u32 (do not touch s0-s4, s9-s10, or ra):
 #   a0 = x on entry
 #   s5 = remaining x    s6 = &pow10[i]      s7 = powers left (10..1)
 #   s8 = started        t0 = digit          t1 = pow10[i]
@@ -40,6 +41,14 @@ lab_c:
     .ascii ") = "                               # 4
 nl:
     .ascii "\n"                                 # 1
+lab_cyc:
+    .ascii "  cyc "                             # 6
+lab_iret:
+    .ascii "  iret "                            # 7
+lab_probe:
+    .ascii "probe"                              # 5
+lab_tot:
+    .ascii "total"                              # 5
 
     .align 2
 pow10:                                          # 10^9 .. 10^0
@@ -58,6 +67,10 @@ pow10:                                          # 10^9 .. 10^0
     .align 2
 buf:
     .space 16                                   # one digit for write
+cyc_sum:
+    .word 0
+iret_sum:
+    .word 0
 
     .section .text._start
     .globl  _start
@@ -79,22 +92,56 @@ _start:
     .globl  gcd
     .globl  print_u32
 
-# int main(void)
-#   for each pair: s4 = gcd(s2, s3)
-#   write "f(" s2 ", " s3 ") = " s4 "\n"
+# Window around gcd, same shape as the empty probe:
+#   get_cycles; get_instret; <body>; get_instret; get_cycles
+# Body is empty for the probe, jal gcd for each pair. Print is outside.
 main:
     la      s0, vals                            # s0 = &vals[0]
     la      t0, nvals
     lw      s1, 0(t0)                           # s1 = 6
 
+    jal     ra, get_cycles
+    mv      s9, a0
+    jal     ra, get_instret
+    mv      s10, a0
+    jal     ra, get_instret
+    sub     s10, a0, s10
+    jal     ra, get_cycles
+    sub     s9, a0, s9
+
+    la      a1, lab_probe
+    li      a2, 5
+    li      a0, 1
+    li      a7, 64
+    ecall
+    jal     ra, print_cycret
+
 main_loop:
     beq     s1, x0, main_done                   # no pairs left
     lw      s2, 0(s0)                           # s2 = a
     lw      s3, 4(s0)                           # s3 = b
+
+    jal     ra, get_cycles
+    mv      s9, a0
+    jal     ra, get_instret
+    mv      s10, a0
     mv      a0, s2
     mv      a1, s3
     jal     ra, gcd
     mv      s4, a0                              # s4 = gcd(a, b)
+    jal     ra, get_instret
+    sub     s10, a0, s10
+    jal     ra, get_cycles
+    sub     s9, a0, s9
+
+    la      t0, cyc_sum
+    lw      t1, 0(t0)
+    add     t1, t1, s9
+    sw      t1, 0(t0)
+    la      t0, iret_sum
+    lw      t1, 0(t0)
+    add     t1, t1, s10
+    sw      t1, 0(t0)
 
     la      a1, lab_a                           # write "f("
     li      a2, 2
@@ -123,19 +170,51 @@ main_loop:
     mv      a0, s4                              # print gcd
     jal     ra, print_u32
 
-    la      a1, nl                              # write "\n"
-    li      a2, 1
-    li      a0, 1
-    li      a7, 64
-    ecall
+    jal     ra, print_cycret
 
     addi    s0, s0, 8                           # next pair
     addi    s1, s1, -1
     j       main_loop
 
 main_done:
+    la      t0, cyc_sum
+    lw      s9, 0(t0)
+    la      t0, iret_sum
+    lw      s10, 0(t0)
+    la      a1, lab_tot
+    li      a2, 5
+    li      a0, 1
+    li      a7, 64
+    ecall
+    jal     ra, print_cycret
+
+    li      a0, 0
     li      a7, 93
     ecall
+
+# print "  cyc <s9>  iret <s10>\n"  (does not clobber s9/s10)
+print_cycret:
+    mv      t6, ra
+    la      a1, lab_cyc
+    li      a2, 6
+    li      a0, 1
+    li      a7, 64
+    ecall
+    mv      a0, s9
+    jal     ra, print_u32
+    la      a1, lab_iret
+    li      a2, 7
+    li      a0, 1
+    li      a7, 64
+    ecall
+    mv      a0, s10
+    jal     ra, print_u32
+    la      a1, nl
+    li      a2, 1
+    li      a0, 1
+    li      a7, 64
+    ecall
+    jalr    x0, t6, 0
 
 # unsigned gcd(unsigned a0, unsigned a1)
 gcd:
