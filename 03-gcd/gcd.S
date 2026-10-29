@@ -221,6 +221,8 @@ gcd:
     beq     a0, x0, return_a                    # a == 0: return b
     beq     a1, x0, return_b                    # b == 0: return a
     li      t0, 0                               # t0 = count
+    li      t5, 16                              # t5 = mask_count
+    li      t6, 0xFFFF                          # t6 = even_mask
 
 # even_loop: while ((a | b) & 1) == 0
 #   a >>= 1, b >>= 1, count++
@@ -231,9 +233,18 @@ even_loop:
 
 
 even_loop_inner:
-    srli    a0, a0, 1
-    srli    a1, a1, 1
-    addi    t0, t0, 1
+    or t1, a0, a1                               # t1 = a | b
+    and t2, t1, t6                              # t2 = (a | b) & even_mask
+
+    bne t2, x0, even_loop_inner1 
+
+    srl     a0, a0, t5                          # a >> mask_bits
+    srl     a1, a1, t5                          # b >> mask_bits
+    add     t0, t0, t5                          # t0 = count + mask_bits
+
+even_loop_inner1:
+    srli    t5, t5, 1                           # mask_count / 2
+    srl     t6, t6, t5                          # even_mask.bit / 2
 
     or      t1, a0, a1                          # t1 = a | b
     andi    t2, t1, 1                           # t2 = parity
