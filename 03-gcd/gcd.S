@@ -1,25 +1,43 @@
 # RV32I binary GCD.  Follows gcd.c.
 #
+# ILP32 calling convention (riscv-elf-psABI):
+#   args a0-a7, 32-bit return a0, 64-bit return a1:a0
+#   caller-saved: ra, t0-t6, a0-a7     (any jal / ecall may clobber these)
+#   callee-saved: sp, s0-s11           (callee saves before use, restores before ret)
+#   sp 16-byte aligned at every call boundary
+#
 # No mul / div / rem.  Shifts are logical (srli / srl / sll, never srai).
 # Compares are unsigned (bltu / bgeu, never blt / bge): pair 3 has bit 31 set.
 # Guest ecalls: write = 64, exit = 93.  No print-integer syscall; decimal is
-# repeated subtraction of pow10[].  No stack: leaf functions inline ecall,
-# ra is only used by jal/ret.
+# repeated subtraction of pow10[].
 #
-# gcd:
-#   a0 = a / return     a1 = b     t0 = count (shared twos)
-#   t1, t2 = scratch    t5 = mask width (16..1)    t6 = low-ones mask
+# gcd — leaf, no frame (a / t only):
+#   a0 = a / return     a1 = b
+#   t0 = count (shared twos)
+#   t1 = scratch (a|b; parity of a or of b)
+#   t2 = scratch (parity, nibble, (a|b) & mask)
+#   t5 = mask width k (16..1), even_loop_skip only
+#   t6 = low-ones mask,         even_loop_skip only
+#   unused: t3, t4
 #
-# main (live across jal gcd / print_u32 / get_cycles):
+# main — 32-byte frame, saves ra, s0-s4, s9, s10:
 #   s0 = &vals[i]       s1 = remaining pairs
 #   s2 = a              s3 = b              s4 = gcd(a, b)
 #   s9 = cycle delta    s10 = instret delta     (gcd window only)
+#   t0, t1 = scratch between calls (cyc_sum / iret_sum)
 #
-# print_u32 (do not touch s0-s4, s9-s10, or ra):
+# print_u32 — 16-byte frame, saves s0-s3; leaf wrt jal; live values in s*
+# because they must survive ecall:
 #   a0 = x on entry
-#   s5 = remaining x    s6 = &pow10[i]      s7 = powers left (10..1)
-#   s8 = started        t0 = digit          t1 = pow10[i]
-#   a7 = ecall only
+#   s0 = remaining x    s1 = &pow10[i]      s2 = powers left (10..1)
+#   s3 = started        t0 = digit          t1 = pow10[i]
+#   t2 = 1 (last-power sentinel)
+#   a0, a1, a2, a7 = ecall write
+#
+# print_cycret — 16-byte frame, saves ra (calls print_u32):
+#   reads s9, s10 (main's; still live because they are callee-saved)
+#
+# get_cycles / get_instret — leaf, uint64 in a1:a0, clobber a2 (see perfcounter.S)
 
     .section .rodata
     .align 2
@@ -82,7 +100,7 @@ _start:
     sw      zero, 0(t0)
     addi    t0, t0, 4
     j       1b
-2:  call    main
+2:  call    main                                # a0 = exit status
     li      a7, 93
     ecall
 3:  j       3b
@@ -96,6 +114,16 @@ _start:
 #   get_cycles; get_instret; <body>; get_instret; get_cycles
 # Body is empty for the probe, jal gcd for each pair. Print is outside.
 main:
+    addi    sp, sp, -32
+    sw      ra, 28(sp)
+    sw      s0, 24(sp)
+    sw      s1, 20(sp)
+    sw      s2, 16(sp)
+    sw      s3, 12(sp)
+    sw      s4, 8(sp)
+    sw      s9, 4(sp)
+    sw      s10, 0(sp)
+
     la      s0, vals                            # s0 = &vals[0]
     la      t0, nvals
     lw      s1, 0(t0)                           # s1 = 6
@@ -189,12 +217,21 @@ main_done:
     jal     ra, print_cycret
 
     li      a0, 0
-    li      a7, 93
-    ecall
+    lw      s10, 0(sp)
+    lw      s9, 4(sp)
+    lw      s4, 8(sp)
+    lw      s3, 12(sp)
+    lw      s2, 16(sp)
+    lw      s1, 20(sp)
+    lw      s0, 24(sp)
+    lw      ra, 28(sp)
+    addi    sp, sp, 32
+    ret
 
-# print "  cyc <s9>  iret <s10>\n"  (does not clobber s9/s10)
+# print "  cyc <s9>  iret <s10>\n"
 print_cycret:
-    mv      t6, ra
+    addi    sp, sp, -16
+    sw      ra, 12(sp)
     la      a1, lab_cyc
     li      a2, 6
     li      a0, 1
@@ -214,7 +251,9 @@ print_cycret:
     li      a0, 1
     li      a7, 64
     ecall
-    jalr    x0, t6, 0
+    lw      ra, 12(sp)
+    addi    sp, sp, 16
+    ret
 
 # unsigned gcd(unsigned a0, unsigned a1)
 gcd:
@@ -222,7 +261,8 @@ gcd:
     beq     a1, x0, return_b                    # b == 0: return a
     li      t0, 0                               # t0 = count
 
-# even_loop: fold shared twos into t0.
+# even_loop: fold shared twos into t0.  k = ctz(a|b) can be anything
+# (pair 2 has k = 28), so a nibble peek then a binary 16/8/4/2/1 walk.
 #   already odd          -> strip_a1
 #   (a | b) & 0xF != 0   -> k = 1,2,3: 1-bit (shortcut)
 #   else                 -> k >= 4: binary 16/8/4/2/1 (skip)
@@ -230,7 +270,7 @@ even_loop:
     or      t1, a0, a1                          # t1 = a | b
     andi    t2, t1, 1                           # t2 = parity
     bne     t2, x0, strip_a1                    # one side odd: stop
-    
+
     andi    t2, t1, 0xF                         # t2 = (a | b) & 0xF
     beq     t2, x0, even_loop_skip              # k >= 4: binary
 
@@ -244,7 +284,7 @@ even_loop_shortcut:
     j       strip_a1
 
 even_loop_skip:
-    li      t5, 16                              # t5 = mask width
+    li      t5, 16                              # t5 = k
     li      t6, 0xFFFF                          # t6 = 16 low ones
 
 even_loop_inner:
@@ -263,23 +303,31 @@ even_loop_inner1:
     andi    t2, t1, 1                           # t2 = parity
     beq     t2, x0, even_loop_inner             # still both even
 
+# strip_* is 1-bit, not the binary mask above.  After odd_sub both sides
+# were odd, so a-b is even: at least one factor of two is certain (100%).
+# For random odds the next twos thin out: two 2s at 50%, three at 25%,
+# each extra two halves.  E[v2(a-b)] = 2, and odd_sub already does the
+# guaranteed srli, so the expected leftover here is one shift.  Walking
+# 16/8/4/2/1 always pays five tests; that loses when extra is 0 or 1,
+# which is the common case.  1-bit wins on the expected value.
+#
 # First entry: peel leftover twos on both sides, then odd_sub.
 # After a > b: only strip_a (b still odd). After larger_b: only strip_b.
 strip_a1:
-    andi    t1, a0, 1
+    andi    t1, a0, 1                           # t1 = a & 1
     bne     t1, x0, strip_b                     # a odd
 strip_a1_inner:
     srli    a0, a0, 1                           # a >>= 1
-    andi    t1, a0, 1
+    andi    t1, a0, 1                           # t1 = a & 1
     beq     t1, x0, strip_a1_inner              # a still even
 
 gcd_loop:
 strip_b:
-    andi    t1, a1, 1
+    andi    t1, a1, 1                           # t1 = b & 1
     bne     t1, x0, odd_sub                     # b odd
 strip_b_inner:
     srli    a1, a1, 1                           # b >>= 1
-    andi    t1, a1, 1
+    andi    t1, a1, 1                           # t1 = b & 1
     beq     t1, x0, strip_b_inner               # b still even
                                                 # fall into odd_sub
 
@@ -293,11 +341,11 @@ odd_sub:
     srli    a0, a0, 1                           # fall into strip_a
 
 strip_a:
-    andi    t1, a0, 1
+    andi    t1, a0, 1                           # t1 = a & 1
     bne     t1, x0, odd_sub                     # a odd
 strip_a_inner:
     srli    a0, a0, 1                           # a >>= 1
-    andi    t1, a0, 1
+    andi    t1, a0, 1                           # t1 = a & 1
     beq     t1, x0, strip_a_inner               # a still even
     j       odd_sub                             # do not fall into larger_b
 
@@ -318,38 +366,43 @@ return_b:
     ret                                         # a0 already holds a
 
 # print_u32(a0 = x)
-# Leaf: write one digit via ecall, no jal, no stack.
 # For i in 10^9 .. 10^0:
 #   digit = how many times pow fits in x (subtract, unsigned)
 #   skip while digit == 0 && !started && not last power
 #   else started = 1, buf[0] = '0' + digit, write(buf, 1)
 # Last power always prints, so 0 becomes "0".
 print_u32:
-    mv      s5, a0                              # s5 = x
-    la      s6, pow10                           # s6 = &pow10[0]
-    li      s7, 10                              # s7 = powers left
-    mv      s8, x0                              # s8 = started
+    addi    sp, sp, -16
+    sw      s0, 0(sp)
+    sw      s1, 4(sp)
+    sw      s2, 8(sp)
+    sw      s3, 12(sp)
+
+    mv      s0, a0                              # s0 = x
+    la      s1, pow10                           # s1 = &pow10[0]
+    li      s2, 10                              # s2 = powers left
+    mv      s3, x0                              # s3 = started
 
 pu_pow:
-    beq     s7, x0, pu_done                     # no powers left
-    lw      t1, 0(s6)                           # t1 = pow10[i]
+    beq     s2, x0, pu_done                     # no powers left
+    lw      t1, 0(s1)                           # t1 = pow10[i]
     li      t0, 0                               # t0 = digit
 
 pu_sub:
-    bltu    s5, t1, pu_emit                     # x < pow
-    sub     s5, s5, t1                          # x -= pow
+    bltu    s0, t1, pu_emit                     # x < pow
+    sub     s0, s0, t1                          # x -= pow
     addi    t0, t0, 1                           # digit++
     j       pu_sub
 
 pu_emit:
     li      t2, 1                               # t2 = 1 (last power)
     bne     t0, x0, pu_write                    # digit != 0
-    bne     s8, x0, pu_write                    # already started
-    beq     s7, t2, pu_write                    # last power: print 0
+    bne     s3, x0, pu_write                    # already started
+    beq     s2, t2, pu_write                    # last power: print 0
     j       pu_next
 
 pu_write:
-    li      s8, 1                               # started
+    li      s3, 1                               # started
     addi    t0, t0, 48                          # '0' + digit
     la      a1, buf                             # a1 = &buf
     sb      t0, 0(a1)                           # buf[0] = ascii
@@ -359,9 +412,14 @@ pu_write:
     ecall
 
 pu_next:
-    addi    s6, s6, 4                           # next power
-    addi    s7, s7, -1
+    addi    s1, s1, 4                           # next power
+    addi    s2, s2, -1
     j       pu_pow
 
 pu_done:
+    lw      s3, 12(sp)
+    lw      s2, 8(sp)
+    lw      s1, 4(sp)
+    lw      s0, 0(sp)
+    addi    sp, sp, 16
     ret
