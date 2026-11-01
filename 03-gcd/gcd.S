@@ -256,6 +256,54 @@ print_cycret:
     ret
 
 # unsigned gcd(unsigned a0, unsigned a1)
+#
+# Fall-through architecture.  Labels are ordered so the common arm does
+# not take a jump.  rv32emu counts every insn, taken or not, at cost 1;
+# the win is skipping the extra `j` / `mv` on the hot path.
+#
+#                    gcd
+#                     |
+#              a==0 / b==0? -- yes --> return_a / return_b
+#                     | no
+#                 even_loop                 fold ctz(a|b) into t0
+#                  /       \
+#           nibble!=0     nibble==0
+#           (k=1,2,3)     (k>=4)
+#         1-bit shortcut  binary 16/8/4/2/1
+#                  \       /
+#                   strip_a1                first peel of leftover 2s on a
+#                     | fall
+#          +------> strip_b <--------+      peel leftover 2s on b
+#          |          | fall         |
+#          |       odd_sub           |      both odd
+#          |       /  |   \          |
+#          |   a<b  a==b   a>b       |
+#          |     |    |      |       |
+#          |     |    |      | fall  |
+#          |     | gcd_done  |       |
+#          |     |  a<<=t0   v       |
+#          |     |  ret   strip_a    |      peel 2s on a only (b still odd)
+#          |     |           |       |
+#          |     |      bne odd_sub  |
+#          |     |      (a odd)      |
+#          |     |           |       |
+#          |     |      j odd_sub    |      cannot fall: larger_b is next
+#          |     |                   |
+#          |     v                   |
+#          |  larger_b --------------+      b=(b-a)>>1, then j (cold)
+#          |  b still even after >>1
+#          +
+#
+# Why this order:
+#   - a>b is the fall-through subtract (pairs in vals[] mostly land here).
+#   - a<b pays bltu + j strip_b; swapping with 3x mv was worse on this emu.
+#   - strip_a cannot sit above larger_b without that `j`: falling would
+#     subtract the wrong way.
+#   - After a>b, b is still odd, so only strip_a runs.  After larger_b,
+#     only strip_b.  First entry uses strip_a1 then falls into strip_b
+#     so both sides are odd before the first odd_sub.
+#   - even_loop_skip, if taken, falls into strip_a1 (no j).  The 1-bit
+#     shortcut cannot: it sits above skip, so it `j strip_a1`.
 gcd:
     beq     a0, x0, return_a                    # a == 0: return b
     beq     a1, x0, return_b                    # b == 0: return a
