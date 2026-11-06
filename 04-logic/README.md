@@ -1,7 +1,16 @@
-# Quiz 3 C: Two Kinds of Logic (code parts)
+# Quiz 3 C: bitwise adders and Q11.20 `q_mul`
 
-Port `op1` / `op2` / `op3` and Q11.20 `q_mul`. Parts 2–4 (gate delay, sequential circuits) are not programs and are not ported.
+Working copies of the `fixed` program. The grading harness is `arch2026-progs` (`src/fixed/`).
 
-`q_mul` needs a 32×32→64 signed multiply (handwritten; `mul` is forbidden).
+| File | Role |
+| :--- | :--- |
+| `fixed.h` | Contract mirror |
+| `fixed.c` | C draft |
+| `fixed.S` | Hand-written RV32I leaves |
+| `notes/hackmd.md` | English write-up draft |
+| `notes/bench.md` | Per-commit cycle log |
 
-Solution write-up: [Quiz 3](https://hackmd.io/@sysprog/arch2026-quiz3).
+```bash
+# measure from the harness tree after syncing these files into src/fixed/
+scripts/driver.py --prog fixed
+```
