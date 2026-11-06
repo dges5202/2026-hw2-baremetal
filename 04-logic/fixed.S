@@ -22,9 +22,9 @@ op1_asm:
     # a1 = b
     # a2 = &n         sw the pass count to 0(a2) before reusing a2
     # t0-t6           scratch
-    li      t0, 0                                       # 0 = count
+    li      t0, 0     # 0 = count
     beqz    a1, op1_loop_skip
-
+                                  
 op1_loop:
     and     t1, a0, a1
     xor     a0, a0, a1
@@ -45,14 +45,10 @@ op2_asm:
     # a0 = a          argument / return
     # a1 = b
     # t0-t6           scratch
-    bltu    a0, a1, op2_a_lt_b
     sub     a0, a0, a1
     ret
 
-op2_a_lt_b:
-    sub     a0, a1, a0
-    sub     a0, x0, a0
-    ret
+
     .size   op2_asm, .-op2_asm
 
 
