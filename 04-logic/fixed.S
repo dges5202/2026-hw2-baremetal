@@ -59,13 +59,12 @@ op3_asm:
     # a0 = a          argument / return
     # a1 = b
     # t0-t6           scratch
-    andi    t0, a0, 1
-    andi    t1, a1, 1
-    and     t2, t0, t1
+    and     t0, a0, a1
+    andi    t1, t0, 1
     srli    a0, a0, 1
     srli    a1, a1, 1
     add     a0, a0, a1
-    add     a0, a0, t2
+    add     a0, a0, t1
     ret
     .size   op3_asm, .-op3_asm
 
